@@ -1,3 +1,0 @@
-# config.env contains real credentials — never commit it
-# Copy it manually to the Pi and fill in your values there
-config.env
