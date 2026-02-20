@@ -1,0 +1,12 @@
+You are configuring this Raspberry Pi as a NordVPN-powered travel router.
+
+The setup scripts are in the current directory: setup.sh, configure-location.sh, and config.env.
+
+Please do the following in order:
+1. Read config.env and show me all current settings
+2. Ask me to confirm or update each of these critical values:
+   - AP_SSID and AP_PASSWORD (my personal hotspot name and password)
+   - AP_INTERFACE and WAN_INTERFACE (verify both exist with `ip link show`)
+   - NORDVPN_COUNTRY
+3. Write any changes back to config.env
+4. Run `sudo ./setup.sh` to complete the setup — I will provide my NordVPN access token when the script asks for it
