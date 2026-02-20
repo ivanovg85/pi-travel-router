@@ -91,6 +91,10 @@ install_packages() {
         dnsutils                # dig, nslookup for debugging
         curl                    # For NordVPN installer
         net-tools               # ifconfig, netstat
+        dkms                    # Auto-rebuild kernel modules on updates
+        build-essential         # Compiler toolchain for driver builds
+        git                     # Clone driver source
+        raspberrypi-kernel-headers  # Kernel headers for current Pi kernel
     )
 
     # Silence the iptables-persistent interactive prompt
@@ -99,6 +103,49 @@ install_packages() {
 
     apt-get install -y -qq "${packages[@]}"
     ok "Packages installed"
+}
+
+# --- Install RTL8852AU Driver (TP-Link TX20U / USB WiFi WAN adapter) ---------
+#
+# The TX20U uses the Realtek RTL8852AU chipset which has no in-kernel Linux
+# driver. We install it via DKMS so it auto-rebuilds after kernel updates.
+# Source: https://github.com/lwfinger/rtl8852au
+
+install_wan_driver() {
+    local driver_name="rtl8852au"
+    local driver_version="1.15.0.1"
+    local driver_src="/usr/src/${driver_name}-${driver_version}"
+
+    log "Installing RTL8852AU driver (TP-Link TX20U)..."
+
+    # Skip if already registered with DKMS
+    if dkms status "${driver_name}/${driver_version}" 2>/dev/null | grep -q "installed"; then
+        ok "RTL8852AU driver already installed via DKMS"
+        return
+    fi
+
+    # Clone driver source into /usr/src where DKMS expects it
+    if [[ ! -d "$driver_src" ]]; then
+        git clone --depth=1 https://github.com/lwfinger/rtl8852au.git "$driver_src"
+    fi
+
+    # Build and install via DKMS
+    dkms add "${driver_name}/${driver_version}" 2>/dev/null || true
+
+    if ! dkms build "${driver_name}/${driver_version}"; then
+        die "RTL8852AU driver build failed.
+    This is a known issue on some Raspberry Pi OS Bookworm kernels.
+    Check: sudo dkms status
+           sudo cat /var/lib/dkms/${driver_name}/${driver_version}/build/make.log
+    Then re-run this script or install the driver manually."
+    fi
+
+    dkms install "${driver_name}/${driver_version}" --force
+
+    # Load immediately without waiting for reboot
+    modprobe 8852au || warn "Module not loadable yet — will activate after reboot"
+
+    ok "RTL8852AU driver installed (DKMS will rebuild it on kernel updates)"
 }
 
 # --- Configure AP (Hotspot) --------------------------------------------------
@@ -370,6 +417,7 @@ main() {
 
     update_system
     install_packages
+    install_wan_driver
     configure_ap
     configure_ip_forwarding
     configure_iptables
