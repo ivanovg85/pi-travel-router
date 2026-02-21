@@ -21,7 +21,7 @@ Bash scripts to configure a Raspberry Pi 4 as a portable travel router. The Pi r
 ### `setup.sh` execution order
 
 `main()` calls these functions in sequence:
-`validate_config` → `update_system` → `install_packages` → `install_wan_driver` → `configure_ap` → `configure_ip_forwarding` → `configure_iptables` → `install_nordvpn` → `configure_nordvpn` → `harden_ssh` → `configure_services` → `create_status_script` → reboot
+`validate_config` → `update_system` → `install_packages` → `install_wan_driver` → `configure_ap` → `configure_phone_hotspot` → `configure_ip_forwarding` → `configure_iptables` → `install_nordvpn` → `configure_nordvpn` → `harden_ssh` → `configure_services` → `create_status_script` → reboot
 
 `configure_nordvpn()` is interactive — it reads a NordVPN access token from stdin. The script reboots automatically at the end.
 
@@ -42,11 +42,14 @@ scp config.env setup.sh configure-location.sh pi@<PI_IP>:~/
 # One-time initial setup (prompts for NordVPN token, then reboots)
 sudo ./setup.sh
 
-# At each new location
+# At each new location (phone hotspot must be on so Pi has internet first)
 sudo ./configure-location.sh "Hotel WiFi Name" "password"
 sudo ./configure-location.sh "Hotel WiFi Name" "password" --country Germany
 sudo ./configure-location.sh --status
 sudo ./configure-location.sh --list-countries
+
+# Revert to phone hotspot (between venues)
+sudo nmcli con delete venue-wifi
 
 # Check overall router status (installed by setup.sh)
 router-status
@@ -61,10 +64,13 @@ ip route show default
 
 ### Networking stack
 
-- **NetworkManager** manages both interfaces. The AP connection profile is named `travel-router-ap`; the venue WiFi profile is `venue-wifi`.
+- **NetworkManager** manages both interfaces. Named connection profiles on `wlan1` and their autoconnect priorities:
+  - `venue-wifi` (priority 50) — hotel/venue WiFi, created by `configure-location.sh`
+  - `phone-hotspot` (priority 10) — phone's hotspot, fallback when no venue WiFi is configured
+  - `travel-router-ap` (priority 100) — the AP on `wlan0`, always active
 - **IP forwarding** (`net.ipv4.ip_forward=1`) is persisted in `/etc/sysctl.d/99-travelrouter.conf`.
 - **iptables** rules in the FORWARD chain allow AP subnet traffic through while dropping everything else. NAT MASQUERADE is set on `WAN_INTERFACE` as a fallback; NordVPN adds its own MASQUERADE on `nordlynx` when connected.
-- **NordVPN kill switch** blocks all internet if VPN drops. The AP subnet (`192.168.10.0/24`) is whitelisted so SSH to the Pi remains accessible even when VPN is down.
+- **NordVPN kill switch** blocks all internet if VPN drops. The AP subnet (`192.168.10.0/24`) is whitelisted so SSH to the Pi remains accessible even when VPN is down. The kill switch also means `wait_for_internet` in `configure-location.sh` skips its curl check when kill switch is active (it would always time out otherwise).
 
 ### Key NordVPN settings applied in `setup.sh`
 
@@ -85,6 +91,7 @@ whitelist subnet 192.168.10.0/24   # Keep SSH accessible when VPN is down
 - `AP_INTERFACE` / `WAN_INTERFACE` — verify with `ip link show` on the Pi before first run
 - `AP_BAND` — `"bg"` (2.4 GHz) or `"a"` (5 GHz)
 - `NORDVPN_TECHNOLOGY` — `nordlynx` (default/recommended) or `openvpn_udp`/`openvpn_tcp` for restrictive networks
+- `PHONE_HOTSPOT_SSID` / `PHONE_HOTSPOT_PASSWORD` — your phone's hotspot credentials; set a fixed SSID in your phone's hotspot settings so it's always predictable. Leave password empty for open networks.
 
 ## Known Issues and Gotchas
 
@@ -152,17 +159,15 @@ sudo modprobe 8852au
 
 Log level mapping (defined in `include/rtw_debug.h`): `_DRV_ALWAYS_=1`, `_DRV_ERR_=2`, `_DRV_WARNING_=3`, `_DRV_INFO_=4`, `_DRV_DEBUG_=5`.
 
-### Kernel headers package name
+### Kernel headers on kernel 6.12
 
-On Raspberry Pi OS Bookworm with kernel 6.12, the kernel headers package is **not** named `raspberrypi-kernel-headers` (that package doesn't exist). The headers are typically pre-installed. Verify with:
+On Raspberry Pi OS Bookworm with kernel 6.12, headers are pre-installed. The old `raspberrypi-kernel-headers` package does not exist. Verify headers are present with:
 
 ```bash
 ls /lib/modules/$(uname -r)/build/Makefile
 ```
 
-**Bug in `setup.sh`:** `install_packages()` (line ~97) includes `raspberrypi-kernel-headers` in its package list, which will fail on kernel 6.12 where the package does not exist. This causes `apt-get install` to error and abort setup. Remove it from the list when targeting kernel 6.12.
-
-**Bug in `setup.sh`:** `install_packages()` does not include `bc`, which is required by the RTL8852AU DKMS build. The manual bootstrap instructions (above) include `bc` — `setup.sh` should too.
+`setup.sh` does not install `raspberrypi-kernel-headers` — this was a known bug that has been fixed.
 
 ## Termux Phone Workflow
 
@@ -184,7 +189,12 @@ The script: installs `openssh` + `termux-api`, sets up your SSH key (paste / use
 
 ### Daily use
 
-Connect your phone to the Pi's hotspot (`na-ji4ka` by default), then:
+**Recommended workflow at each new venue:**
+
+1. Turn on your phone's hotspot (SSID must match `PHONE_HOTSPOT_SSID` in `config.env`)
+2. Pi boots and `wlan1` auto-connects to your phone hotspot → NordVPN connects
+3. Connect your phone to the Pi's AP (`na-ji4ka`)
+4. Run `push-wifi` to switch the Pi to hotel WiFi:
 
 ```bash
 # Push venue WiFi credentials (prompts for SSID and password)
@@ -204,6 +214,12 @@ push-wifi --list-countries
 ```
 
 `push-wifi` auto-detects the SSID of your current WiFi connection via `termux-wifi-connectioninfo` (requires the Termux:API app). It SSHes to `192.168.10.1` and runs `sudo /home/pi/configure-location.sh` with the provided credentials.
+
+**To revert to phone hotspot** (e.g. between venues): delete the venue WiFi profile on the Pi and NetworkManager falls back automatically:
+
+```bash
+ssh pi-router "sudo nmcli con delete venue-wifi"
+```
 
 ### Notes
 
