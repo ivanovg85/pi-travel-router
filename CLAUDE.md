@@ -12,11 +12,14 @@ Bash scripts to configure a Raspberry Pi 4 as a portable travel router. The Pi r
 
 | File | Purpose |
 |------|---------|
-| `config.env` | All user-configurable settings — edit this first |
+| `config.env` | All user-configurable settings — edit this first (gitignored) |
+| `config.env.example` | Template for `config.env` — copy and fill in secrets |
 | `setup.sh` | One-time setup, run once on the Pi after first boot |
 | `configure-location.sh` | Run at each new location to switch venue WiFi and reconnect VPN |
 | `termux-setup.sh` | One-time setup for Termux on Android phone (run once on the phone) |
 | `push-wifi.sh` | Push venue WiFi credentials from phone to Pi (daily use from Termux) |
+| `USAGE.md` | User guide: daily workflow, troubleshooting, disaster recovery |
+| `PI_IMAGER_SETTINGS.md` | Raspberry Pi Imager settings for flashing a fresh SD card |
 
 ### `setup.sh` execution order
 
@@ -191,6 +194,21 @@ ssh pi-router "sudo nmcli con delete venue-wifi"
 - `configure-location.sh` lives at `/home/georgi/pi-travel-router/configure-location.sh` on the Pi
 - You can also SSH directly: `ssh pi-router`
 
+## Disaster Recovery
+
+If the router needs to be rebuilt from scratch:
+
+1. Flash SD card using settings in `PI_IMAGER_SETTINGS.md`
+2. Boot Pi and SSH in via home WiFi
+3. Clone repo: `git clone https://github.com/ivanovg85/pi-travel-router.git`
+4. Copy template: `cp config.env.example config.env`
+5. Fill in secrets: `AP_PASSWORD`, `NORDVPN_TOKEN`, `PHONE_HOTSPOT_SSID`/`PASSWORD`
+6. Run: `sudo ./setup.sh`
+
+**What to back up:** `config.env`, SSH private key, NordVPN token
+
+See `USAGE.md` for detailed recovery steps and troubleshooting.
+
 ## Prerequisites
 
 - Raspberry Pi OS Lite 64-bit (Bookworm)
@@ -198,4 +216,4 @@ ssh pi-router "sudo nmcli con delete venue-wifi"
 - NordVPN access token — set `NORDVPN_TOKEN` in `config.env` (get one at `my.nordaccount.com → Services → NordVPN → Set up NordVPN manually`)
 - SSH public key pre-loaded via Raspberry Pi Imager before first boot
 - Phone hotspot SSID and password set in `config.env` (`PHONE_HOTSPOT_SSID` / `PHONE_HOTSPOT_PASSWORD`)
-- Ethernet connection to the Pi during setup (phone hotspot uses `wlan1` which requires the adapter)
+- Home WiFi or Ethernet connection to the Pi during setup
