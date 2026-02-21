@@ -21,17 +21,21 @@ Bash scripts to configure a Raspberry Pi 4 as a portable travel router. The Pi r
 ### `setup.sh` execution order
 
 `main()` calls these functions in sequence:
-`validate_config` → `update_system` → `install_packages` → `install_wan_driver` → `configure_ap` → `configure_phone_hotspot` → `configure_ip_forwarding` → `configure_iptables` → `install_nordvpn` → `configure_nordvpn` → `harden_ssh` → `configure_services` → `create_status_script` → reboot
+`validate_config` → `update_system` → `install_packages` → `install_wan_driver` → `install_nordvpn` → `configure_nordvpn` → `configure_ap` → `configure_phone_hotspot` → `configure_ip_forwarding` → `configure_iptables` → `harden_ssh` → `configure_services` → `create_status_script` → reboot
+
+NordVPN is installed and configured **before** `configure_ap` so that internet access (via home WiFi or Ethernet) is still available when the NordVPN installer runs. This means Ethernet is not required during setup — home WiFi alone is sufficient.
 
 `configure_nordvpn()` uses `NORDVPN_TOKEN` from `config.env` if set, otherwise prompts interactively. The script reboots automatically at the end.
 
-`--no-wan` flag skips `install_wan_driver` and `configure_phone_hotspot`, and bypasses the `wlan1` existence check in `validate_config`. Use this to prepare the Pi before the USB adapter arrives, then re-run without the flag to complete setup.
+`--no-wan` flag skips `install_wan_driver` and `configure_phone_hotspot`, and bypasses the `wlan1` existence check in `validate_config`. Use this to prepare the Pi before the USB adapter arrives. When the adapter arrives, just plug it in and run `configure-location.sh` as normal — no need to re-run `setup.sh`.
 
 `create_status_script()` installs `/usr/local/bin/router-status` (the `router-status` command available after setup).
 
 ### `configure-location.sh` execution order
 
-`main()` calls: `connect_wan` → `wait_for_internet` → `connect_vpn` → `verify_ap` → `verify_forwarding`
+`main()` calls: `ensure_phone_hotspot` → `connect_wan` → `wait_for_internet` → `connect_vpn` → `verify_ap` → `verify_forwarding`
+
+`ensure_phone_hotspot()` is a transparent one-time step: creates the `phone-hotspot` NM profile on `wlan1` if it doesn't exist yet (e.g. first run after adapter arrives following a `--no-wan` setup). Subsequent runs detect the existing profile and skip it.
 
 `connect_wan()` deletes any existing `venue-wifi` NM profile before creating a fresh one — this prevents stale credential issues.
 
@@ -105,7 +109,7 @@ whitelist subnet 192.168.10.0/24   # Keep SSH accessible when VPN is down
 
 `validate_config()` checks that `WAN_INTERFACE` (`wlan1`) exists via `ip link show` and aborts if it doesn't. The current adapter is a **BrosTrend WiFi 6E AXE3000** — in-kernel driver, no extra setup needed.
 
-**If the adapter isn't available yet:** run `sudo ./setup.sh --no-wan` to do everything except the WAN steps. When the adapter arrives, plug it in, reboot, verify `ip link show wlan1`, then re-run `sudo ./setup.sh` to finish.
+**If the adapter isn't available yet:** run `sudo ./setup.sh --no-wan` to do everything except the WAN steps. When the adapter arrives, plug it in — no reboot needed. Connect your phone to the `travel-pi` AP and run `push-wifi` (or `configure-location.sh`) as normal. The phone hotspot fallback profile is created automatically on the first run.
 
 **If running full setup:** plug in the adapter and verify before running:
 
@@ -143,11 +147,17 @@ The script: installs `openssh` + `termux-api`, sets up your SSH key (paste / use
 
 ### Daily use
 
-**Recommended workflow at each new venue:**
+**First venue (after adapter arrives):**
+
+1. Plug in the USB adapter
+2. Connect your phone to the Pi's AP (`travel-pi`)
+3. Run `push-wifi "Hotel WiFi"` — the phone hotspot fallback profile is also created automatically
+
+**Subsequent venues:**
 
 1. Turn on your phone's hotspot (SSID must match `PHONE_HOTSPOT_SSID` in `config.env`)
 2. Pi boots and `wlan1` auto-connects to your phone hotspot → NordVPN connects
-3. Connect your phone to the Pi's AP (`na-ji4ka`)
+3. Connect your phone to the Pi's AP (`travel-pi`)
 4. Run `push-wifi` to switch the Pi to hotel WiFi:
 
 ```bash

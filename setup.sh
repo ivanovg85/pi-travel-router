@@ -8,7 +8,8 @@
 #   sudo ./setup.sh --no-wan   # Partial setup without USB adapter — skips
 #                              # WAN interface check and phone hotspot config.
 #                              # Use this to prepare the Pi before the adapter
-#                              # arrives. Re-run without --no-wan to finish.
+#                              # arrives. When adapter arrives, just plug it in
+#                              # and run configure-location.sh as normal.
 #
 # Prerequisites:
 #   - Raspberry Pi OS Lite 64-bit (Bookworm)
@@ -433,6 +434,7 @@ main() {
     log " AP interface  : $AP_INTERFACE"
     log " WAN interface : $WAN_INTERFACE"
     log " Hotspot SSID  : $AP_SSID"
+    log " Hotspot pass  : $AP_PASSWORD"
     log " Hotspot IP    : $AP_IP"
     log " VPN country   : $NORDVPN_COUNTRY"
     log "=============================================="
@@ -445,14 +447,14 @@ main() {
     if [[ "$no_wan" == 0 ]]; then
         install_wan_driver
     fi
+    install_nordvpn
+    configure_nordvpn
     configure_ap
     if [[ "$no_wan" == 0 ]]; then
         configure_phone_hotspot
     fi
     configure_ip_forwarding
     configure_iptables
-    install_nordvpn
-    configure_nordvpn
     harden_ssh
     configure_services
     create_status_script
@@ -463,24 +465,39 @@ main() {
         ok " Partial setup complete (--no-wan)!"
         ok "=============================================="
         ok ""
+        ok " Hotspot credentials:"
+        ok "   SSID     : $AP_SSID"
+        ok "   Password : $AP_PASSWORD"
+        ok "   IP       : $AP_IP"
+        ok ""
         ok " WAN adapter steps were skipped."
         ok " Once the BrosTrend adapter arrives:"
-        ok "   1. Plug it in and reboot"
-        ok "   2. Verify: ip link show wlan1"
-        ok "   3. Re-run: sudo ./setup.sh"
+        ok "   1. Plug it in (no reboot needed)"
+        ok "   2. Connect to '$AP_SSID' and SSH to $AP_IP"
+        ok "   3. Run push-wifi (or configure-location.sh) as normal"
+        ok "      The phone hotspot fallback profile is created automatically"
+        ok "      on the first configure-location.sh run."
     else
         ok " Setup complete!"
         ok "=============================================="
         ok ""
-        ok " Your hotspot '$AP_SSID' is now active."
-        ok " Connect your phone to '$AP_SSID' and SSH"
-        ok " to $AP_IP to manage the router."
+        ok " Hotspot credentials:"
+        ok "   SSID     : $AP_SSID"
+        ok "   Password : $AP_PASSWORD"
+        ok "   IP       : $AP_IP"
+        ok ""
+        ok " Connect to '$AP_SSID' and SSH to $AP_IP"
+        ok " to manage the router."
         ok ""
         ok " At each new location, run:"
         ok "   sudo ./configure-location.sh 'WiFiName' 'password'"
     fi
     ok ""
+    ok "=============================================="
     ok " Rebooting in 10 seconds..."
+    ok " After reboot, home WiFi will be gone."
+    ok " Connect to '$AP_SSID' (pass: $AP_PASSWORD)"
+    ok " then SSH to $AP_IP"
     ok "=============================================="
 
     sleep 10

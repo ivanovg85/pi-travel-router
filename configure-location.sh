@@ -110,6 +110,45 @@ show_status() {
     echo ""
 }
 
+# --- Ensure Phone Hotspot Fallback is Configured (one-time) ------------------
+#
+# When setup.sh was run with --no-wan (before the USB adapter arrived), the
+# phone-hotspot NM profile was skipped. This function creates it transparently
+# on the first configure-location.sh run after the adapter is plugged in.
+# Subsequent runs detect the existing profile and do nothing.
+
+ensure_phone_hotspot() {
+    [[ -n "${PHONE_HOTSPOT_SSID:-}" ]] || return 0
+
+    if nmcli con show "phone-hotspot" &>/dev/null 2>&1; then
+        return 0  # already configured
+    fi
+
+    log "First run after adapter install — creating phone hotspot fallback profile..."
+
+    if [[ -n "${PHONE_HOTSPOT_PASSWORD:-}" ]]; then
+        nmcli con add \
+            type wifi \
+            ifname "$WAN_INTERFACE" \
+            con-name "phone-hotspot" \
+            ssid "$PHONE_HOTSPOT_SSID" \
+            wifi-sec.key-mgmt wpa-psk \
+            wifi-sec.psk "$PHONE_HOTSPOT_PASSWORD" \
+            connection.autoconnect yes \
+            connection.autoconnect-priority 10
+    else
+        nmcli con add \
+            type wifi \
+            ifname "$WAN_INTERFACE" \
+            con-name "phone-hotspot" \
+            ssid "$PHONE_HOTSPOT_SSID" \
+            connection.autoconnect yes \
+            connection.autoconnect-priority 10
+    fi
+
+    ok "Phone hotspot fallback configured (SSID: '$PHONE_HOTSPOT_SSID')"
+}
+
 # --- Connect to Venue WiFi ---------------------------------------------------
 
 connect_wan() {
@@ -315,6 +354,7 @@ main() {
     log "=============================================="
     log ""
 
+    ensure_phone_hotspot
     connect_wan "$ssid" "$password"
     wait_for_internet || true
     connect_vpn "$vpn_country"
