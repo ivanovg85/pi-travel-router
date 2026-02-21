@@ -101,15 +101,17 @@ whitelist subnet 192.168.10.0/24   # Keep SSH accessible when VPN is down
 
 ## Known Issues and Gotchas
 
-### USB WiFi adapter must be plugged in before running `setup.sh`
+### USB WiFi adapter must be plugged in for full setup
 
-`validate_config()` checks that `WAN_INTERFACE` (`wlan1`) exists via `ip link show` and aborts if it doesn't. Plug in the USB adapter and reboot before running `setup.sh`, then verify:
+`validate_config()` checks that `WAN_INTERFACE` (`wlan1`) exists via `ip link show` and aborts if it doesn't. The current adapter is a **BrosTrend WiFi 6E AXE3000** — in-kernel driver, no extra setup needed.
+
+**If the adapter isn't available yet:** run `sudo ./setup.sh --no-wan` to do everything except the WAN steps. When the adapter arrives, plug it in, reboot, verify `ip link show wlan1`, then re-run `sudo ./setup.sh` to finish.
+
+**If running full setup:** plug in the adapter and verify before running:
 
 ```bash
 ip link show wlan1
 ```
-
-The current adapter is a **BrosTrend WiFi 6E AXE3000**, which uses an in-kernel driver and requires no additional setup.
 
 ### Kernel headers on kernel 6.12
 
@@ -182,7 +184,8 @@ ssh pi-router "sudo nmcli con delete venue-wifi"
 ## Prerequisites
 
 - Raspberry Pi OS Lite 64-bit (Bookworm)
-- **BrosTrend WiFi 6E AXE3000** USB adapter plugged in (appears as `wlan1`) — uses an in-kernel driver, no extra setup needed
+- **BrosTrend WiFi 6E AXE3000** USB adapter plugged in (appears as `wlan1`) — required for full setup; use `--no-wan` to prepare the Pi before it arrives
 - NordVPN access token — set `NORDVPN_TOKEN` in `config.env` (get one at `my.nordaccount.com → Services → NordVPN → Set up NordVPN manually`)
 - SSH public key pre-loaded via Raspberry Pi Imager before first boot
 - Phone hotspot SSID and password set in `config.env` (`PHONE_HOTSPOT_SSID` / `PHONE_HOTSPOT_PASSWORD`)
+- Ethernet connection to the Pi during setup (phone hotspot uses `wlan1` which requires the adapter)
