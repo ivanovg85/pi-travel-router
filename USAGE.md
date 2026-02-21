@@ -45,6 +45,43 @@ sudo nmcli con delete venue-wifi
 
 The Pi will automatically reconnect to your phone hotspot (if it's on).
 
+## Using push-wifi from Your Phone (Termux)
+
+If you have Termux set up on your Android phone, you can configure the router without typing SSIDs manually.
+
+### Setup (one-time)
+
+1. Install Termux and Termux:API from F-Droid
+2. Run `termux-setup.sh` in Termux to install dependencies
+
+### Usage
+
+While connected to `travel-pi`:
+
+```bash
+# Scan for available networks and pick one (recommended)
+push-wifi --scan
+
+# Output:
+# Scanning for WiFi networks...
+#
+# Available networks:
+#   1) Hotel_Lobby (signal: -45 dBm)
+#   2) Hotel_Pool (signal: -62 dBm)
+#   3) Starbucks (signal: -70 dBm)
+# Select network [1-3]: 1
+# Password for 'Hotel_Lobby': ********
+
+# Or specify SSID directly
+push-wifi "Hotel WiFi"
+
+# With VPN country
+push-wifi "Hotel WiFi" --country Germany
+
+# Check status
+push-wifi --status
+```
+
 ## NordVPN Kill Switch
 
 The kill switch blocks all internet traffic if VPN disconnects, preventing IP leaks. However, it can also block DHCP on the AP, making SSH access impossible when VPN is down.
@@ -327,3 +364,57 @@ journalctl -u nordvpnd -f
 | `/etc/sysctl.d/99-travelrouter.conf` | IP forwarding settings |
 | `/etc/ssh/sshd_config.d/99-travelrouter.conf` | SSH hardening |
 | `/usr/local/bin/router-status` | Status check script |
+
+## Disaster Recovery
+
+If the router stops working and you need to start fresh:
+
+### What You Need
+
+1. **Raspberry Pi Imager** — to flash a fresh Pi OS
+2. **Your SSH private key** — on your laptop/phone
+3. **Your config.env backup** — or recreate from `config.env.example`
+4. **Your NordVPN token** — from my.nordaccount.com
+
+### Recovery Steps
+
+1. **Flash Raspberry Pi OS Lite 64-bit** using Raspberry Pi Imager
+   - Set hostname (e.g., `travel-pi`)
+   - Set username: `georgi`
+   - Set password
+   - Paste your SSH public key
+   - Configure WiFi (home network for initial setup)
+
+2. **Boot the Pi** and SSH in via your home network
+
+3. **Clone the repo:**
+   ```bash
+   git clone https://github.com/ivanovg85/pi-travel-router.git
+   cd pi-travel-router
+   ```
+
+4. **Create config.env from template:**
+   ```bash
+   cp config.env.example config.env
+   nano config.env
+   ```
+   Fill in:
+   - `AP_PASSWORD` — your hotspot password
+   - `NORDVPN_TOKEN` — your NordVPN access token
+   - `PHONE_HOTSPOT_SSID` — your phone's hotspot name
+   - `PHONE_HOTSPOT_PASSWORD` — your phone's hotspot password (if any)
+
+5. **Run setup:**
+   ```bash
+   chmod +x setup.sh configure-location.sh
+   sudo ./setup.sh
+   ```
+
+6. **After reboot**, connect to `travel-pi` and configure venue WiFi as normal
+
+### Backup Recommendations
+
+Keep these safe (password manager, encrypted cloud, etc.):
+- Your `config.env` file
+- Your SSH private key
+- Your NordVPN token

@@ -5,17 +5,15 @@
 # Run this in Termux while your phone is connected to the Pi's hotspot.
 #
 # Usage:
-#   push-wifi [SSID] [--country COUNTRY] [--status] [--list-countries]
+#   push-wifi [SSID] [--country COUNTRY] [--status] [--list-countries] [--scan]
 #
 # Examples:
 #   push-wifi                           # prompts for SSID and password
+#   push-wifi --scan                    # scan for networks and pick one
 #   push-wifi "Hotel WiFi"              # prompts for password only
 #   push-wifi "Hotel WiFi" --country DE # connect VPN to Germany
 #   push-wifi --status                  # show current router status
 #   push-wifi --list-countries          # list available VPN countries
-#
-# Auto-detection: if Termux:API is installed and your phone was recently
-# connected to the venue WiFi, the SSID may be pre-filled automatically.
 # =============================================================================
 
 PI_HOST="192.168.10.1"
@@ -36,15 +34,57 @@ ssh_pi() {
         "$@"
 }
 
-detect_ssid() {
-    command -v termux-wifi-connectioninfo >/dev/null 2>&1 || return 1
-    local info ssid
-    info=$(termux-wifi-connectioninfo 2>/dev/null) || return 1
-    # Parse "ssid": "SomeName"  (handles both with and without quotes around value)
-    ssid=$(printf '%s' "$info" | grep -o '"ssid": *"[^"]*"' | sed 's/.*"ssid": *"\(.*\)"/\1/')
-    # Skip "<unknown ssid>" which Android returns when permission not granted
-    [[ "$ssid" == "<unknown ssid>" || -z "$ssid" ]] && return 1
-    printf '%s' "$ssid"
+scan_networks() {
+    command -v termux-wifi-scaninfo >/dev/null 2>&1 || {
+        echo "Error: termux-wifi-scaninfo not found. Install Termux:API app and run: pkg install termux-api" >&2
+        return 1
+    }
+
+    echo "Scanning for WiFi networks..."
+    local scan_result
+    scan_result=$(termux-wifi-scaninfo 2>/dev/null) || {
+        echo "Error: WiFi scan failed. Make sure location is enabled." >&2
+        return 1
+    }
+
+    # Parse JSON array and extract SSIDs with signal strength, filter duplicates and travel-pi
+    # Format: ssid (signal dBm)
+    local networks
+    networks=$(printf '%s' "$scan_result" | \
+        grep -oE '"ssid": *"[^"]*"|"level": *-?[0-9]+' | \
+        paste - - | \
+        sed 's/"ssid": *"\([^"]*\)".*"level": *\(-\?[0-9]*\)/\1|\2/' | \
+        grep -v '^travel-pi|' | \
+        grep -v '^|' | \
+        sort -t'|' -k2 -rn | \
+        awk -F'|' '!seen[$1]++ {print $1 "|" $2}')
+
+    [[ -z "$networks" ]] && {
+        echo "No networks found (other than travel-pi)." >&2
+        return 1
+    }
+
+    echo
+    echo "Available networks:"
+    local i=1
+    local ssid_list=()
+    while IFS='|' read -r ssid signal; do
+        printf "  %d) %s (signal: %s dBm)\n" "$i" "$ssid" "$signal"
+        ssid_list+=("$ssid")
+        ((i++))
+    done <<< "$networks"
+
+    echo
+    local selection
+    read -r -p "Select network [1-$((i-1))]: " selection
+
+    # Validate selection
+    if ! [[ "$selection" =~ ^[0-9]+$ ]] || [[ "$selection" -lt 1 ]] || [[ "$selection" -ge "$i" ]]; then
+        echo "Invalid selection." >&2
+        return 1
+    fi
+
+    printf '%s' "${ssid_list[$((selection-1))]}"
 }
 
 # ---- argument parsing -------------------------------------------------------
@@ -53,6 +93,7 @@ SSID=""
 COUNTRY=""
 STATUS_ONLY=0
 LIST_COUNTRIES=0
+SCAN_MODE=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -67,6 +108,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --list-countries|-l)
             LIST_COUNTRIES=1
+            shift
+            ;;
+        --scan)
+            SCAN_MODE=1
             shift
             ;;
         --help|-h)
@@ -100,19 +145,11 @@ fi
 
 # ---- collect SSID -----------------------------------------------------------
 
-if [[ -z "$SSID" ]]; then
-    detected=$(detect_ssid 2>/dev/null)
-    if [[ -n "$detected" ]]; then
-        echo "Detected WiFi: \"$detected\""
-        read -r -p "Use this SSID? [Y/n] " yn
-        case "$yn" in
-            [Nn]*) ;;
-            *) SSID="$detected" ;;
-        esac
-    fi
-fi
-
-if [[ -z "$SSID" ]]; then
+if [[ "$SCAN_MODE" == 1 ]]; then
+    SSID=$(scan_networks) || exit 1
+    echo
+    echo "Selected: \"$SSID\""
+elif [[ -z "$SSID" ]]; then
     read -r -p "Venue WiFi SSID: " SSID
 fi
 

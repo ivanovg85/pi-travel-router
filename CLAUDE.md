@@ -161,8 +161,8 @@ The script: installs `openssh` + `termux-api`, sets up your SSH key (paste / use
 4. Run `push-wifi` to switch the Pi to hotel WiFi:
 
 ```bash
-# Push venue WiFi credentials (prompts for SSID and password)
-push-wifi
+# Scan for available networks and pick one (recommended)
+push-wifi --scan
 
 # Specify SSID on the command line
 push-wifi "Hotel WiFi"
@@ -177,7 +177,7 @@ push-wifi --status
 push-wifi --list-countries
 ```
 
-`push-wifi` auto-detects the SSID of your current WiFi connection via `termux-wifi-connectioninfo` (requires the Termux:API app). It SSHes to `192.168.10.1` and runs `sudo /home/pi/configure-location.sh` with the provided credentials.
+`push-wifi --scan` uses `termux-wifi-scaninfo` to list visible networks (even while connected to travel-pi), lets you pick one, then prompts for the password. It SSHes to `192.168.10.1` and runs `configure-location.sh` with the credentials.
 
 **To revert to phone hotspot** (e.g. between venues): delete the venue WiFi profile on the Pi and NetworkManager falls back automatically:
 
