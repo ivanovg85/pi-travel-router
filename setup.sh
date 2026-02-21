@@ -256,8 +256,10 @@ configure_nordvpn() {
     nordvpn set technology "$NORDVPN_TECHNOLOGY"
 
     # Kill switch: drops all internet traffic if VPN disconnects
-    # This prevents your real IP from leaking when the VPN drops
-    nordvpn set killswitch on
+    # Disabled by default so DHCP works on the AP even when VPN is disconnected.
+    # This allows SSH access to configure WAN without needing a monitor.
+    # Trade-off: brief IP exposure if VPN drops (reconnects automatically).
+    nordvpn set killswitch off
 
     # Routing: allows devices connected to the Pi (AP clients) to have their
     # traffic routed through NordVPN, not just the Pi's own traffic

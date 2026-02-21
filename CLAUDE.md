@@ -79,13 +79,13 @@ ip route show default
   - `travel-router-ap` (priority 100) — the AP on `wlan0`, always active
 - **IP forwarding** (`net.ipv4.ip_forward=1`) is persisted in `/etc/sysctl.d/99-travelrouter.conf`.
 - **iptables** rules in the FORWARD chain allow AP subnet traffic through while dropping everything else. NAT MASQUERADE is set on `WAN_INTERFACE` as a fallback; NordVPN adds its own MASQUERADE on `nordlynx` when connected.
-- **NordVPN kill switch** blocks all internet if VPN drops. The AP subnet (`192.168.10.0/24`) is whitelisted so SSH to the Pi remains accessible even when VPN is down. The kill switch also means `wait_for_internet` in `configure-location.sh` skips its curl check when kill switch is active (it would always time out otherwise).
+- **NordVPN kill switch** is disabled by default so DHCP works on the AP even when VPN is disconnected (allows SSH access to configure WAN without a monitor). If enabled, it blocks all internet if VPN drops — the AP subnet (`192.168.10.0/24`) is whitelisted so SSH remains accessible, but DHCP can still be affected.
 
 ### Key NordVPN settings applied in `setup.sh`
 
 ```
 technology nordlynx        # WireGuard-based, faster than OpenVPN
-killswitch on
+killswitch off             # Disabled so DHCP works on AP when VPN is disconnected
 routing on                 # Routes AP client traffic through VPN, not just Pi's own traffic
 lan-discovery on
 whitelist subnet 192.168.10.0/24   # Keep SSH accessible when VPN is down
