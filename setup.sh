@@ -307,19 +307,24 @@ configure_nordvpn() {
     # Set default VPN country
     nordvpn set defaults &>/dev/null || true  # Reset any previous settings
 
-    log ""
-    log "========================================================"
-    log " NordVPN Authentication Required"
-    log "========================================================"
-    log " You need a NordVPN access token to authenticate."
-    log " Get one at: my.nordaccount.com"
-    log "   → Services → NordVPN → Set up NordVPN manually"
-    log "   → Generate new token"
-    log "========================================================"
-    log ""
+    local nordvpn_token="${NORDVPN_TOKEN:-}"
 
-    read -rp "Paste your NordVPN access token: " nordvpn_token
-    [[ -n "$nordvpn_token" ]] || die "No token provided, cannot authenticate NordVPN"
+    if [[ -n "$nordvpn_token" ]]; then
+        log "Using NordVPN token from config.env"
+    else
+        log ""
+        log "========================================================"
+        log " NordVPN Authentication Required"
+        log "========================================================"
+        log " No NORDVPN_TOKEN found in config.env."
+        log " Get one at: my.nordaccount.com"
+        log "   → Services → NordVPN → Set up NordVPN manually"
+        log "   → Generate new token"
+        log "========================================================"
+        log ""
+        read -rp "Paste your NordVPN access token: " nordvpn_token
+        [[ -n "$nordvpn_token" ]] || die "No token provided, cannot authenticate NordVPN"
+    fi
 
     nordvpn login --token "$nordvpn_token" \
         || die "NordVPN login failed. Check your token and try again."
