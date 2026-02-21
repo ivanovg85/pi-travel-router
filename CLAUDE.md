@@ -90,9 +90,23 @@ ip route show default
 technology nordlynx        # WireGuard-based, faster than OpenVPN
 killswitch off             # Disabled so DHCP works on AP when VPN is disconnected
 routing on                 # Routes AP client traffic through VPN, not just Pi's own traffic
-lan-discovery on
+lan-discovery on           # CRITICAL: without this, NordVPN's nftables drops AP client traffic
 whitelist subnet 192.168.10.0/24   # Keep SSH accessible when VPN is down
 ```
+
+`nordvpn set defaults` is called **first** in `configure_nordvpn()` to clear stale settings, then all desired settings are applied. Order matters — calling `set defaults` after the other settings would reset them all.
+
+### How NordVPN's firewall actually works (nftables)
+
+NordVPN uses **nftables** (not just iptables) for its firewall. Key tables it manages:
+- `ip mangle` — PREROUTING drops traffic from `wlan0`/`eth0` that doesn't match private subnets or carry fwmark `0xe1f1`. **`lan-discovery on` is required** to add the `ip saddr 192.168.0.0/16 iifname "wlan0" accept` rules that let AP client traffic through.
+- Policy routing: fwmark `0xe1f1` is used to exempt NordVPN daemon traffic from the VPN tunnel (to avoid routing loops). All other traffic (no fwmark) is sent to routing table 205 → `nordlynx` default route → through the VPN.
+
+**NetworkManager**, not NordVPN or iptables, handles MASQUERADE for AP clients via the `nm-shared-wlan0` nftables table it creates when `ipv4.method shared` is active:
+```
+ip saddr 192.168.10.0/24 ip daddr != 192.168.10.0/24 masquerade
+```
+This rule automatically covers whatever interface AP traffic exits on (nordlynx when VPN is up, WAN interface when VPN is down). No manual iptables MASQUERADE rules for the AP subnet are needed.
 
 ### SSH hardening
 

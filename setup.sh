@@ -252,6 +252,9 @@ configure_nordvpn() {
     # The nordvpn daemon must be running for configuration
     systemctl enable --now nordvpnd
 
+    # Reset any previous settings before applying ours
+    nordvpn set defaults &>/dev/null || true
+
     # Set VPN technology (nordlynx = WireGuard-based, faster)
     nordvpn set technology "$NORDVPN_TECHNOLOGY"
 
@@ -269,11 +272,10 @@ configure_nordvpn() {
     # This ensures you can still SSH into the Pi when VPN is disconnected
     nordvpn whitelist add subnet "$AP_SUBNET"
 
-    # Allow LAN discovery (access Pi from local network)
+    # LAN discovery: required for NordVPN's nftables to allow forwarded AP
+    # client traffic through. Without this, NordVPN drops packets from the AP
+    # subnet in its PREROUTING mangle chain before they reach the FORWARD chain.
     nordvpn set lan-discovery on
-
-    # Set default VPN country
-    nordvpn set defaults &>/dev/null || true  # Reset any previous settings
 
     local nordvpn_token="${NORDVPN_TOKEN:-}"
 
