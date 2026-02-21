@@ -332,6 +332,40 @@ configure_nordvpn() {
     ok "NordVPN configured (country: $NORDVPN_COUNTRY)"
 }
 
+# --- Configure Phone Hotspot as Fallback WAN ---------------------------------
+
+configure_phone_hotspot() {
+    [[ -n "${PHONE_HOTSPOT_SSID:-}" ]] || { log "PHONE_HOTSPOT_SSID not set, skipping"; return; }
+
+    log "Configuring phone hotspot as fallback WAN..."
+
+    # Remove any existing profile to start fresh
+    nmcli con delete "phone-hotspot" &>/dev/null || true
+
+    if [[ -n "${PHONE_HOTSPOT_PASSWORD:-}" ]]; then
+        nmcli con add \
+            type wifi \
+            ifname "$WAN_INTERFACE" \
+            con-name "phone-hotspot" \
+            ssid "$PHONE_HOTSPOT_SSID" \
+            wifi-sec.key-mgmt wpa-psk \
+            wifi-sec.psk "$PHONE_HOTSPOT_PASSWORD" \
+            connection.autoconnect yes \
+            connection.autoconnect-priority 10
+    else
+        nmcli con add \
+            type wifi \
+            ifname "$WAN_INTERFACE" \
+            con-name "phone-hotspot" \
+            ssid "$PHONE_HOTSPOT_SSID" \
+            connection.autoconnect yes \
+            connection.autoconnect-priority 10
+    fi
+
+    ok "Phone hotspot profile saved (SSID: '$PHONE_HOTSPOT_SSID')"
+    ok "wlan1 will auto-connect to your phone when no venue WiFi is configured"
+}
+
 # --- Harden SSH --------------------------------------------------------------
 
 harden_ssh() {
@@ -434,6 +468,7 @@ main() {
     install_packages
     install_wan_driver
     configure_ap
+    configure_phone_hotspot
     configure_ip_forwarding
     configure_iptables
     install_nordvpn

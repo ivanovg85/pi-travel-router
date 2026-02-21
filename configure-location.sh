@@ -140,6 +140,10 @@ connect_wan() {
         die "Failed to connect to '$ssid'. Check the SSID and password."
     fi
 
+    # Give venue-wifi higher autoconnect priority than phone-hotspot (10) so
+    # the Pi reconnects to hotel WiFi on reboot rather than falling back to phone
+    nmcli con modify "venue-wifi" connection.autoconnect-priority 50 &>/dev/null || true
+
     # Wait for the connection to associate and get an IP
     progress "Waiting for WiFi association"
     local elapsed=0
