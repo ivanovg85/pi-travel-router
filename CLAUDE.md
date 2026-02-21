@@ -24,7 +24,7 @@ Bash scripts to configure a Raspberry Pi 4 as a portable travel router. The Pi r
 ### `setup.sh` execution order
 
 `main()` calls these functions in sequence:
-`validate_config` → `update_system` → `install_packages` → `install_wan_driver` → `install_nordvpn` → `configure_nordvpn` → `configure_ap` → `configure_phone_hotspot` → `configure_ip_forwarding` → `configure_iptables` → `harden_ssh` → `configure_services` → `create_status_script` → reboot
+`validate_config` → `update_system` → `install_packages` → `install_wan_driver` → `install_nordvpn` → `configure_nordvpn` → `configure_ap` → `configure_phone_hotspot` → `configure_ip_forwarding` → `configure_iptables` → `harden_ssh` → `configure_services` → `install_dhcp_fix` → `create_status_script` → reboot
 
 NordVPN is installed and configured **before** `configure_ap` so that internet access (via home WiFi or Ethernet) is still available when the NordVPN installer runs. This means Ethernet is not required during setup — home WiFi alone is sufficient.
 
@@ -54,7 +54,9 @@ sudo ./setup.sh
 # Prepare Pi before USB adapter arrives (skips WAN steps, safe to re-run)
 sudo ./setup.sh --no-wan
 
-# At each new location (phone hotspot must be on so Pi has internet first)
+# At each new location
+# Phone hotspot only needed as Pi's WAN if no other internet path exists (e.g. Pi auto-booted without venue WiFi)
+# If you can already reach the Pi's AP, just run this directly — no phone hotspot required
 sudo ./configure-location.sh "Hotel WiFi Name" "password"
 sudo ./configure-location.sh "Hotel WiFi Name" "password" --country Germany
 sudo ./configure-location.sh --status
@@ -81,7 +83,7 @@ ip route show default
   - `phone-hotspot` (priority 10) — phone's hotspot, fallback when no venue WiFi is configured
   - `travel-router-ap` (priority 100) — the AP on `wlan0`, always active
 - **IP forwarding** (`net.ipv4.ip_forward=1`) is persisted in `/etc/sysctl.d/99-travelrouter.conf`.
-- **iptables** rules in the FORWARD chain allow AP subnet traffic through while dropping everything else. NAT MASQUERADE is set on `WAN_INTERFACE` as a fallback; NordVPN adds its own MASQUERADE on `nordlynx` when connected.
+- **iptables** rules in the FORWARD chain allow AP subnet traffic through while dropping everything else. MASQUERADE for AP clients is handled automatically by NetworkManager's `nm-shared-wlan0` nftables table (created when `ipv4.method shared` is active on `wlan0`) — no manual MASQUERADE rules for the AP subnet are needed.
 - **NordVPN kill switch** is disabled by default so DHCP works on the AP even when VPN is disconnected (allows SSH access to configure WAN without a monitor). If enabled, it blocks all internet if VPN drops — the AP subnet (`192.168.10.0/24`) is whitelisted so SSH remains accessible, but DHCP can still be affected.
 
 ### Key NordVPN settings applied in `setup.sh`
@@ -151,6 +153,10 @@ All scripts exit immediately on any unhandled error (unset variable, failed comm
 ### `configure-location.sh` does not support open venue WiFi
 
 The script requires a non-empty password (`[[ -n "$password" ]] || die "Password cannot be empty"`). To connect to an open (passwordless) network, connect via `nmcli` directly instead.
+
+### SSH drops when `nordvpn connect` runs
+
+When NordVPN connects, it rewrites the routing table (adds table 205 with a default route via `nordlynx`). If you're SSHed in over the WAN interface (`wlan1` or `eth0`), your session drops. Reconnect via the AP: `ssh georgi@192.168.10.1`. The AP interface (`wlan0`) is whitelisted and unaffected by this routing change.
 
 ### USB WiFi adapter must be plugged in for full setup
 
