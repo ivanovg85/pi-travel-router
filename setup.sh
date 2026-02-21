@@ -107,60 +107,15 @@ install_packages() {
     ok "Packages installed"
 }
 
-# --- Install RTL8852AU Driver (TP-Link TX20U / USB WiFi WAN adapter) ---------
+# --- Verify WAN Adapter -------------------------------------------------------
 #
-# The TX20U uses the Realtek RTL8852AU chipset which has no in-kernel Linux
-# driver. We install it via DKMS so it auto-rebuilds after kernel updates.
-# Source: https://github.com/lwfinger/rtl8852au
+# The BrosTrend WiFi 6E AXE3000 uses an in-kernel driver — no DKMS needed.
+# validate_config() already confirmed $WAN_INTERFACE exists, so this is just
+# a confirmation step. If you ever swap adapters, plug it in and reboot before
+# running setup.sh so the interface is visible here.
 
 install_wan_driver() {
-    local driver_name="rtl8852au"
-    local driver_version="1.15.0.1"
-    local driver_src="/usr/src/${driver_name}-${driver_version}"
-
-    # If the WAN interface already exists, the adapter has an in-kernel driver
-    # and no DKMS module is needed (e.g. mt7601u, rt2800usb, ath9k_htc, etc.).
-    if ip link show "$WAN_INTERFACE" &>/dev/null; then
-        ok "WAN interface $WAN_INTERFACE is already up — skipping driver install"
-        return
-    fi
-
-    # Fall through to RTL8852AU DKMS install only if the interface is missing.
-    # NOTE: The RTL8852AU driver (TP-Link TX20U, USB ID 35bc:0100) does NOT work
-    # on kernel 6.12 due to a HAL init failure. See CLAUDE.md for details.
-    # If you are using a different adapter, install its driver manually before
-    # running setup.sh, then reboot so the interface appears before validation.
-    log "WAN interface $WAN_INTERFACE not found — attempting RTL8852AU DKMS install..."
-    warn "RTL8852AU is known-broken on kernel 6.12. Replace adapter if this fails."
-
-    # Skip if already registered with DKMS
-    if dkms status "${driver_name}/${driver_version}" 2>/dev/null | grep -q "installed"; then
-        ok "RTL8852AU driver already installed via DKMS"
-        return
-    fi
-
-    # Clone driver source into /usr/src where DKMS expects it
-    if [[ ! -d "$driver_src" ]]; then
-        git clone --depth=1 https://github.com/lwfinger/rtl8852au.git "$driver_src"
-    fi
-
-    # Build and install via DKMS
-    dkms add "${driver_name}/${driver_version}" 2>/dev/null || true
-
-    if ! dkms build "${driver_name}/${driver_version}"; then
-        die "RTL8852AU driver build failed.
-    This is a known issue on some Raspberry Pi OS Bookworm kernels.
-    Check: sudo dkms status
-           sudo cat /var/lib/dkms/${driver_name}/${driver_version}/build/make.log
-    Then re-run this script or install the driver manually."
-    fi
-
-    dkms install "${driver_name}/${driver_version}" --force
-
-    # Load immediately without waiting for reboot
-    modprobe 8852au || warn "Module not loadable yet — will activate after reboot"
-
-    ok "RTL8852AU driver installed (DKMS will rebuild it on kernel updates)"
+    ok "WAN interface $WAN_INTERFACE is up — no driver install needed"
 }
 
 # --- Configure AP (Hotspot) --------------------------------------------------
