@@ -96,17 +96,41 @@ whitelist subnet 192.168.10.0/24   # Keep SSH accessible when VPN is down
 
 ### SSH hardening
 
-`setup.sh` writes `/etc/ssh/sshd_config.d/99-travelrouter.conf`. Password auth is disabled only if `/home/pi/.ssh/authorized_keys` already exists (safety check). SSH port is configurable via `SSH_PORT` in `config.env`.
+`setup.sh` writes `/etc/ssh/sshd_config.d/99-travelrouter.conf`. Password auth is disabled only if `/home/georgi/.ssh/authorized_keys` already exists (safety check). SSH port is configurable via `SSH_PORT` in `config.env`.
 
 ### `config.env` variables to know
 
 - `AP_INTERFACE` / `WAN_INTERFACE` — verify with `ip link show` on the Pi before first run
 - `AP_BAND` — `"bg"` (2.4 GHz) or `"a"` (5 GHz)
+- `AP_CHANNEL` — channel number; use 1/6/11 for 2.4 GHz, 36/40/44/48/149/153/157/161 for 5 GHz
+- `AP_COUNTRY_CODE` — ISO 3166-1 alpha-2 country code for regulatory WiFi compliance (e.g. `"US"`, `"BG"`)
 - `NORDVPN_TECHNOLOGY` — `nordlynx` (default/recommended) or `openvpn_udp`/`openvpn_tcp` for restrictive networks
 - `NORDVPN_TOKEN` — NordVPN access token for non-interactive setup. If set, `configure_nordvpn()` uses it silently; if absent, it prompts interactively. Get one at `my.nordaccount.com → Services → NordVPN → Set up NordVPN manually`.
 - `PHONE_HOTSPOT_SSID` / `PHONE_HOTSPOT_PASSWORD` — your phone's hotspot credentials; set a fixed SSID in your phone's hotspot settings so it's always predictable. Leave password empty for open networks.
+- `SSH_PORT` — SSH port; change from 22 to reduce scan noise, but **also update `push-wifi.sh` and `termux-setup.sh`** (see below)
+- `SSH_DISABLE_PASSWORD` — `"yes"` (default) disables password login once an authorized key is detected; set to `"no"` to skip
+- `DHCP_RANGE_START` / `DHCP_RANGE_END` / `DHCP_LEASE_TIME` — defined in `config.env.example` but **not used by any script**; NetworkManager's `ipv4.method shared` handles DHCP automatically
 
 ## Known Issues and Gotchas
+
+### Username `georgi` is hardcoded
+
+The Pi username is hardcoded as `georgi` in several places and is **not** a `config.env` variable. If the Pi username differs, update all of:
+- `setup.sh`: `usermod -aG nordvpn georgi` and `harden_ssh()` → `/home/georgi/.ssh/authorized_keys`
+- `push-wifi.sh`: `PI_USER="georgi"` and `REMOTE_SCRIPT="/home/georgi/pi-travel-router/configure-location.sh"`
+- `termux-setup.sh`: `PI_USER="georgi"`
+
+### `push-wifi.sh` and `termux-setup.sh` hardcode Pi connection details
+
+`PI_HOST`, `PI_USER`, and `PI_PORT` are set at the top of both `push-wifi.sh` and `termux-setup.sh` — they are **not** read from `config.env`. If you change `SSH_PORT` in `config.env`, you must also update `PI_PORT` in these two files manually.
+
+### Scripts use `set -euo pipefail`
+
+All scripts exit immediately on any unhandled error (unset variable, failed command, failed pipe). When modifying scripts, every command that may legitimately fail should be guarded with `|| true` or explicit error handling.
+
+### `configure-location.sh` does not support open venue WiFi
+
+The script requires a non-empty password (`[[ -n "$password" ]] || die "Password cannot be empty"`). To connect to an open (passwordless) network, connect via `nmcli` directly instead.
 
 ### USB WiFi adapter must be plugged in for full setup
 
@@ -150,19 +174,6 @@ The script: installs `openssh` + `termux-api`, sets up your SSH key (paste / use
 
 ### Daily use
 
-**First venue (after adapter arrives):**
-
-1. Plug in the USB adapter
-2. Connect your phone to the Pi's AP (`travel-pi`)
-3. Run `push-wifi "Hotel WiFi"` — the phone hotspot fallback profile is also created automatically
-
-**Subsequent venues:**
-
-1. Turn on your phone's hotspot (SSID must match `PHONE_HOTSPOT_SSID` in `config.env`)
-2. Pi boots and `wlan1` auto-connects to your phone hotspot → NordVPN connects
-3. Connect your phone to the Pi's AP (`travel-pi`)
-4. Run `push-wifi` to switch the Pi to hotel WiFi:
-
 ```bash
 # Scan for available networks and pick one (recommended)
 push-wifi --scan
@@ -182,17 +193,13 @@ push-wifi --list-countries
 
 `push-wifi --scan` uses `termux-wifi-scaninfo` to list visible networks (even while connected to travel-pi), lets you pick one, then prompts for the password. It SSHes to `192.168.10.1` and runs `configure-location.sh` with the credentials.
 
-**To revert to phone hotspot** (e.g. between venues): delete the venue WiFi profile on the Pi and NetworkManager falls back automatically:
+`push-wifi` uses `printf '%q'` for safe shell-escaping of SSID and password before passing them over SSH.
+
+**To revert to phone hotspot** (e.g. between venues):
 
 ```bash
 ssh pi-router "sudo nmcli con delete venue-wifi"
 ```
-
-### Notes
-
-- `push-wifi` uses `printf '%q'` for safe shell-escaping of SSID and password before passing them over SSH
-- `configure-location.sh` lives at `/home/georgi/pi-travel-router/configure-location.sh` on the Pi
-- You can also SSH directly: `ssh pi-router`
 
 ## Disaster Recovery
 
