@@ -25,6 +25,8 @@ Bash scripts to configure a Raspberry Pi 4 as a portable travel router. The Pi r
 
 `configure_nordvpn()` uses `NORDVPN_TOKEN` from `config.env` if set, otherwise prompts interactively. The script reboots automatically at the end.
 
+`--no-wan` flag skips `install_wan_driver` and `configure_phone_hotspot`, and bypasses the `wlan1` existence check in `validate_config`. Use this to prepare the Pi before the USB adapter arrives, then re-run without the flag to complete setup.
+
 `create_status_script()` installs `/usr/local/bin/router-status` (the `router-status` command available after setup).
 
 ### `configure-location.sh` execution order
@@ -41,6 +43,9 @@ scp config.env setup.sh configure-location.sh pi@<PI_IP>:~/
 
 # One-time initial setup (prompts for NordVPN token, then reboots)
 sudo ./setup.sh
+
+# Prepare Pi before USB adapter arrives (skips WAN steps, safe to re-run)
+sudo ./setup.sh --no-wan
 
 # At each new location (phone hotspot must be on so Pi has internet first)
 sudo ./configure-location.sh "Hotel WiFi Name" "password"

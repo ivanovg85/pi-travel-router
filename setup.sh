@@ -4,13 +4,17 @@
 # Run once after first boot on the Raspberry Pi.
 #
 # Usage:
-#   sudo ./setup.sh
+#   sudo ./setup.sh            # Full setup (USB adapter must be plugged in)
+#   sudo ./setup.sh --no-wan   # Partial setup without USB adapter — skips
+#                              # WAN interface check and phone hotspot config.
+#                              # Use this to prepare the Pi before the adapter
+#                              # arrives. Re-run without --no-wan to finish.
 #
 # Prerequisites:
 #   - Raspberry Pi OS Lite 64-bit (Bookworm)
 #   - Edit config.env before running
-#   - Pi must have internet access during setup (via Ethernet or pre-configured WiFi)
-#   - Your phone's SSH public key must already be in ~/.ssh/authorized_keys
+#   - Pi must have internet access during setup (Ethernet recommended)
+#   - Your SSH public key must already be in ~/.ssh/authorized_keys
 #     (done automatically if you set it in Raspberry Pi Imager)
 # =============================================================================
 
@@ -46,6 +50,7 @@ confirm() {
 # --- Validation --------------------------------------------------------------
 
 validate_config() {
+    local skip_wan="${1:-}"
     log "Validating configuration..."
 
     [[ -n "${AP_SSID:-}" ]]          || die "AP_SSID is not set in config.env"
@@ -60,8 +65,13 @@ validate_config() {
     # Check interfaces exist
     ip link show "$AP_INTERFACE" &>/dev/null \
         || die "AP_INTERFACE '$AP_INTERFACE' not found. Run 'ip link show' to list interfaces."
-    ip link show "$WAN_INTERFACE" &>/dev/null \
-        || die "WAN_INTERFACE '$WAN_INTERFACE' not found. Is the USB WiFi adapter plugged in?"
+
+    if [[ "$skip_wan" == "skip_wan" ]]; then
+        warn "Skipping WAN interface check (--no-wan mode)"
+    else
+        ip link show "$WAN_INTERFACE" &>/dev/null \
+            || die "WAN_INTERFACE '$WAN_INTERFACE' not found. Is the USB adapter plugged in?"
+    fi
 
     ok "Configuration is valid"
 }
@@ -406,13 +416,19 @@ STATUSEOF
 # --- Main --------------------------------------------------------------------
 
 main() {
+    local no_wan=0
+    for arg in "$@"; do
+        [[ "$arg" == "--no-wan" ]] && no_wan=1
+    done
+
     require_root
     load_config
-    validate_config
+    [[ "$no_wan" == 1 ]] && validate_config skip_wan || validate_config
 
     log ""
     log "=============================================="
     log " Travel Router Initial Setup"
+    [[ "$no_wan" == 1 ]] && log " Mode: --no-wan (WAN steps skipped)"
     log "=============================================="
     log " AP interface  : $AP_INTERFACE"
     log " WAN interface : $WAN_INTERFACE"
@@ -426,9 +442,13 @@ main() {
 
     update_system
     install_packages
-    install_wan_driver
+    if [[ "$no_wan" == 0 ]]; then
+        install_wan_driver
+    fi
     configure_ap
-    configure_phone_hotspot
+    if [[ "$no_wan" == 0 ]]; then
+        configure_phone_hotspot
+    fi
     configure_ip_forwarding
     configure_iptables
     install_nordvpn
@@ -439,15 +459,26 @@ main() {
 
     log ""
     ok "=============================================="
-    ok " Setup complete!"
-    ok "=============================================="
-    ok ""
-    ok " Your hotspot '$AP_SSID' is now active."
-    ok " Connect your phone to '$AP_SSID' and SSH"
-    ok " to $AP_IP to manage the router."
-    ok ""
-    ok " At each new location, run:"
-    ok "   sudo ./configure-location.sh 'WiFiName' 'password'"
+    if [[ "$no_wan" == 1 ]]; then
+        ok " Partial setup complete (--no-wan)!"
+        ok "=============================================="
+        ok ""
+        ok " WAN adapter steps were skipped."
+        ok " Once the BrosTrend adapter arrives:"
+        ok "   1. Plug it in and reboot"
+        ok "   2. Verify: ip link show wlan1"
+        ok "   3. Re-run: sudo ./setup.sh"
+    else
+        ok " Setup complete!"
+        ok "=============================================="
+        ok ""
+        ok " Your hotspot '$AP_SSID' is now active."
+        ok " Connect your phone to '$AP_SSID' and SSH"
+        ok " to $AP_IP to manage the router."
+        ok ""
+        ok " At each new location, run:"
+        ok "   sudo ./configure-location.sh 'WiFiName' 'password'"
+    fi
     ok ""
     ok " Rebooting in 10 seconds..."
     ok "=============================================="
