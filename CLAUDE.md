@@ -177,6 +177,7 @@ ssh pi-router "sudo nmcli con delete venue-wifi"
 ## Prerequisites
 
 - Raspberry Pi OS Lite 64-bit (Bookworm)
-- USB WiFi adapter plugged in (appears as `wlan1`) — required for dual-radio operation
-- NordVPN access token from `my.nordaccount.com → Services → NordVPN → Set up NordVPN manually`
+- **BrosTrend WiFi 6E AXE3000** USB adapter plugged in (appears as `wlan1`) — uses an in-kernel driver, no extra setup needed
+- NordVPN access token — set `NORDVPN_TOKEN` in `config.env` (get one at `my.nordaccount.com → Services → NordVPN → Set up NordVPN manually`)
 - SSH public key pre-loaded via Raspberry Pi Imager before first boot
+- Phone hotspot SSID and password set in `config.env` (`PHONE_HOTSPOT_SSID` / `PHONE_HOTSPOT_PASSWORD`)
