@@ -162,6 +162,15 @@ connect_wan() {
 # --- Wait for Internet Connectivity ------------------------------------------
 
 wait_for_internet() {
+    # NordVPN kill switch blocks all outbound traffic from the Pi while VPN is
+    # disconnected. A curl check here would time out on every run. Skip it when
+    # kill switch is active — connect_vpn() will fail with a clear error if the
+    # venue WiFi genuinely has no internet.
+    if nordvpn settings 2>/dev/null | grep -qi "Kill Switch: enabled"; then
+        log "Skipping internet check (NordVPN kill switch active)"
+        return 0
+    fi
+
     progress "Waiting for internet connectivity"
     local elapsed=0
     while ! curl -s --max-time 3 https://checkip.amazonaws.com &>/dev/null; do

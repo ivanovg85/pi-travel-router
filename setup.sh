@@ -93,8 +93,10 @@ install_packages() {
         net-tools               # ifconfig, netstat
         dkms                    # Auto-rebuild kernel modules on updates
         build-essential         # Compiler toolchain for driver builds
+        bc                      # Required by some DKMS driver Makefiles
         git                     # Clone driver source
-        raspberrypi-kernel-headers  # Kernel headers for current Pi kernel
+        # Note: kernel headers are pre-installed on Pi OS Bookworm (kernel 6.x).
+        # The old "raspberrypi-kernel-headers" package does not exist on kernel 6.12.
     )
 
     # Silence the iptables-persistent interactive prompt
@@ -116,7 +118,20 @@ install_wan_driver() {
     local driver_version="1.15.0.1"
     local driver_src="/usr/src/${driver_name}-${driver_version}"
 
-    log "Installing RTL8852AU driver (TP-Link TX20U)..."
+    # If the WAN interface already exists, the adapter has an in-kernel driver
+    # and no DKMS module is needed (e.g. mt7601u, rt2800usb, ath9k_htc, etc.).
+    if ip link show "$WAN_INTERFACE" &>/dev/null; then
+        ok "WAN interface $WAN_INTERFACE is already up — skipping driver install"
+        return
+    fi
+
+    # Fall through to RTL8852AU DKMS install only if the interface is missing.
+    # NOTE: The RTL8852AU driver (TP-Link TX20U, USB ID 35bc:0100) does NOT work
+    # on kernel 6.12 due to a HAL init failure. See CLAUDE.md for details.
+    # If you are using a different adapter, install its driver manually before
+    # running setup.sh, then reboot so the interface appears before validation.
+    log "WAN interface $WAN_INTERFACE not found — attempting RTL8852AU DKMS install..."
+    warn "RTL8852AU is known-broken on kernel 6.12. Replace adapter if this fails."
 
     # Skip if already registered with DKMS
     if dkms status "${driver_name}/${driver_version}" 2>/dev/null | grep -q "installed"; then
