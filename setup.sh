@@ -389,6 +389,41 @@ configure_services() {
     ok "Services enabled for auto-start on boot"
 }
 
+# --- Install NordVPN DHCP Fix ------------------------------------------------
+#
+# NordVPN's nftables mangle PREROUTING drops packets with src=0.0.0.0, which
+# includes DHCP DISCOVER frames sent by new AP clients that don't yet have an
+# IP. The lan-discovery setting adds accept rules for private subnets but not
+# for 0.0.0.0. Without this fix, only devices with a cached lease (DHCPREQUEST
+# with a real src IP) can connect; brand-new or forgotten-network clients get
+# no DHCP response and time out.
+#
+# This dispatcher script re-inserts the accept rule each time wlan0 comes up,
+# after nordvpnd has had a chance to write its own nftables rules.
+
+install_dhcp_fix() {
+    log "Installing NordVPN DHCP fix for AP clients..."
+
+    local dispatcher="/etc/NetworkManager/dispatcher.d/99-travel-router-dhcp-fix"
+
+    cat > "$dispatcher" << EOF
+#!/bin/bash
+# NordVPN's nftables mangle PREROUTING drops DHCP DISCOVER packets (src=0.0.0.0)
+# from ${AP_INTERFACE}, preventing new clients from getting an IP. This re-inserts
+# the accept rule each time ${AP_INTERFACE} comes up.
+INTERFACE="\$1"
+EVENT="\$2"
+
+if [[ "\$INTERFACE" == "${AP_INTERFACE}" && "\$EVENT" == "up" ]]; then
+    sleep 3  # wait for nordvpnd to finish writing its nftables rules
+    nft insert rule ip mangle PREROUTING iifname "${AP_INTERFACE}" ip saddr 0.0.0.0 udp dport 67 accept 2>/dev/null || true
+fi
+EOF
+
+    chmod +x "$dispatcher"
+    ok "DHCP fix installed: $dispatcher"
+}
+
 # --- Create Status Check Script ----------------------------------------------
 
 create_status_script() {
@@ -461,6 +496,7 @@ main() {
     configure_iptables
     harden_ssh
     configure_services
+    install_dhcp_fix
     create_status_script
 
     log ""

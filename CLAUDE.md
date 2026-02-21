@@ -108,6 +108,12 @@ ip saddr 192.168.10.0/24 ip daddr != 192.168.10.0/24 masquerade
 ```
 This rule automatically covers whatever interface AP traffic exits on (nordlynx when VPN is up, WAN interface when VPN is down). No manual iptables MASQUERADE rules for the AP subnet are needed.
 
+### NordVPN DHCP fix for new AP clients
+
+`lan-discovery on` adds nftables accept rules for private source IPs on `wlan0`, but DHCP DISCOVER frames have `src=0.0.0.0` (the client has no IP yet) and hit NordVPN's catch-all `iifname "wlan0" drop`. Only devices with a cached lease (DHCPREQUEST with a real src IP) can connect; new or forgotten-network clients time out waiting for DHCP.
+
+`setup.sh` installs a NetworkManager dispatcher script at `/etc/NetworkManager/dispatcher.d/99-travel-router-dhcp-fix` that re-inserts an accept rule for `src=0.0.0.0 udp dport 67` into NordVPN's mangle PREROUTING chain each time `wlan0` comes up (after a 3 s delay for nordvpnd to finish writing its rules).
+
 ### SSH hardening
 
 `setup.sh` writes `/etc/ssh/sshd_config.d/99-travelrouter.conf`. Password auth is disabled only if `/home/georgi/.ssh/authorized_keys` already exists (safety check). SSH port is configurable via `SSH_PORT` in `config.env`.
