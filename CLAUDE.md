@@ -23,7 +23,7 @@ Bash scripts to configure a Raspberry Pi 4 as a portable travel router. The Pi r
 `main()` calls these functions in sequence:
 `validate_config` → `update_system` → `install_packages` → `install_wan_driver` → `configure_ap` → `configure_phone_hotspot` → `configure_ip_forwarding` → `configure_iptables` → `install_nordvpn` → `configure_nordvpn` → `harden_ssh` → `configure_services` → `create_status_script` → reboot
 
-`configure_nordvpn()` is interactive — it reads a NordVPN access token from stdin. The script reboots automatically at the end.
+`configure_nordvpn()` uses `NORDVPN_TOKEN` from `config.env` if set, otherwise prompts interactively. The script reboots automatically at the end.
 
 `create_status_script()` installs `/usr/local/bin/router-status` (the `router-status` command available after setup).
 
@@ -91,6 +91,7 @@ whitelist subnet 192.168.10.0/24   # Keep SSH accessible when VPN is down
 - `AP_INTERFACE` / `WAN_INTERFACE` — verify with `ip link show` on the Pi before first run
 - `AP_BAND` — `"bg"` (2.4 GHz) or `"a"` (5 GHz)
 - `NORDVPN_TECHNOLOGY` — `nordlynx` (default/recommended) or `openvpn_udp`/`openvpn_tcp` for restrictive networks
+- `NORDVPN_TOKEN` — NordVPN access token for non-interactive setup. If set, `configure_nordvpn()` uses it silently; if absent, it prompts interactively. Get one at `my.nordaccount.com → Services → NordVPN → Set up NordVPN manually`.
 - `PHONE_HOTSPOT_SSID` / `PHONE_HOTSPOT_PASSWORD` — your phone's hotspot credentials; set a fixed SSID in your phone's hotspot settings so it's always predictable. Leave password empty for open networks.
 
 ## Known Issues and Gotchas
