@@ -13,7 +13,7 @@
 set -e
 
 PI_HOST="192.168.10.1"
-PI_USER="pi"
+PI_USER="georgi"
 PI_PORT="22"
 SCRIPT_DIR="$HOME/.local/bin"
 

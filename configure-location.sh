@@ -10,7 +10,7 @@
 #   sudo ./configure-location.sh --status
 #
 # From your phone via SSH:
-#   ssh travelpi "sudo /home/pi/configure-location.sh 'Hotel WiFi' 'pass123'"
+#   ssh pi-router "sudo /home/georgi/pi-travel-router/configure-location.sh 'Hotel WiFi' 'pass123'"
 # =============================================================================
 
 set -euo pipefail

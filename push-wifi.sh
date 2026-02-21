@@ -19,9 +19,9 @@
 # =============================================================================
 
 PI_HOST="192.168.10.1"
-PI_USER="pi"
+PI_USER="georgi"
 PI_PORT="22"
-REMOTE_SCRIPT="/home/pi/configure-location.sh"
+REMOTE_SCRIPT="/home/georgi/pi-travel-router/configure-location.sh"
 
 # ---- helpers ----------------------------------------------------------------
 

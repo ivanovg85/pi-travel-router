@@ -39,7 +39,7 @@ Bash scripts to configure a Raspberry Pi 4 as a portable travel router. The Pi r
 
 ```bash
 # Deploy files from your phone/computer to the Pi
-scp config.env setup.sh configure-location.sh pi@<PI_IP>:~/
+scp config.env setup.sh configure-location.sh georgi@<PI_IP>:~/pi-travel-router/
 
 # One-time initial setup (prompts for NordVPN token, then reboots)
 sudo ./setup.sh
@@ -178,7 +178,7 @@ ssh pi-router "sudo nmcli con delete venue-wifi"
 ### Notes
 
 - `push-wifi` uses `printf '%q'` for safe shell-escaping of SSID and password before passing them over SSH
-- `configure-location.sh` must exist at `/home/pi/configure-location.sh` on the Pi (deployed via `scp`)
+- `configure-location.sh` lives at `/home/georgi/pi-travel-router/configure-location.sh` on the Pi
 - You can also SSH directly: `ssh pi-router`
 
 ## Prerequisites

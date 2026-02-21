@@ -237,8 +237,8 @@ install_nordvpn() {
     # Official NordVPN installer — supports ARM64 (Raspberry Pi 4 with 64-bit OS)
     curl -sSf https://downloads.nordvpn.com/apps/linux/install.sh | sh
 
-    # Add pi user to the nordvpn group so they can run nordvpn without sudo
-    usermod -aG nordvpn pi
+    # Add user to the nordvpn group so they can run nordvpn without sudo
+    usermod -aG nordvpn georgi
 
     ok "NordVPN installed"
 }
@@ -354,15 +354,15 @@ EOF
 
     if [[ "${SSH_DISABLE_PASSWORD:-yes}" == "yes" ]]; then
         # Verify the user has an authorized key before disabling password auth
-        local auth_keys="/home/pi/.ssh/authorized_keys"
+        local auth_keys="/home/georgi/.ssh/authorized_keys"
         if [[ -s "$auth_keys" ]]; then
             echo "PasswordAuthentication no" >> "$ssh_config"
             echo "KbdInteractiveAuthentication no" >> "$ssh_config"
             ok "Password authentication disabled (SSH key required)"
         else
-            warn "No SSH authorized_keys found for user 'pi'!"
+            warn "No SSH authorized_keys found for user 'georgi'!"
             warn "Password authentication NOT disabled to avoid locking you out."
-            warn "Add your SSH key to /home/pi/.ssh/authorized_keys and re-run, or"
+            warn "Add your SSH key to /home/georgi/.ssh/authorized_keys and re-run, or"
             warn "manually add: 'PasswordAuthentication no' to $ssh_config"
         fi
     fi
