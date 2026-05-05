@@ -235,8 +235,11 @@ install_nordvpn() {
         return
     fi
 
-    # Official NordVPN installer — supports ARM64 (Raspberry Pi 4 with 64-bit OS)
-    curl -sSf https://downloads.nordvpn.com/apps/linux/install.sh | sh
+    # Install via apt repo (the old install.sh URL no longer exists)
+    curl -sSf "https://repo.nordvpn.com/deb/nordvpn/debian/pool/main/n/nordvpn-release/nordvpn-release_1.0.0_all.deb" -o /tmp/nordvpn-release.deb
+    dpkg -i /tmp/nordvpn-release.deb
+    apt-get update -qq
+    apt-get install -y nordvpn
 
     # Add user to the nordvpn group so they can run nordvpn without sudo
     usermod -aG nordvpn georgi
