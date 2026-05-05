@@ -299,7 +299,8 @@ configure_nordvpn() {
         [[ -n "$nordvpn_token" ]] || die "No token provided, cannot authenticate NordVPN"
     fi
 
-    nordvpn login --token "$nordvpn_token" \
+    # 'yes no' pipes repeated "no" answers to decline the analytics prompt
+    yes no | nordvpn login --token "$nordvpn_token" \
         || die "NordVPN login failed. Check your token and try again."
 
     # Connect to the configured country
